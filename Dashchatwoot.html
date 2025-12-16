@@ -921,6 +921,12 @@
             border: 1px solid rgba(255, 77, 77, 0.2);
         }
 
+        .status-sumiu {
+            background: rgba(255, 0, 255, 0.1);
+            color: #ff00ff;
+            border: 1px solid rgba(255, 0, 255, 0.2);
+        }
+
         .agent-section {
             margin-top: 1.5rem;
             padding-top: 1.5rem;
@@ -1768,6 +1774,10 @@
                     <span class="check-box"><i class="bi bi-check"></i></span>
                     <span>Stopped</span>
                 </label>
+                <label class="filter-option" data-value="SUMIU">
+                    <span class="check-box"><i class="bi bi-check"></i></span>
+                    <span>Sumiu</span>
+                </label>
             </div>
         </div>
 
@@ -2603,7 +2613,8 @@
                 'SCAN_QR_CODE': 'status-scan_qr_code',
                 'STARTING': 'status-starting',
                 'FAILED': 'status-failed',
-                'STOPPED': 'status-stopped'
+                'STOPPED': 'status-stopped',
+                'SUMIU': 'status-sumiu'
             };
             const statusWahaClass = statusClassMap[session.status] || 'status-unknown';
 
