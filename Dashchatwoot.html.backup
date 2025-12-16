@@ -1,0 +1,3031 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waha & Chatwoot Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --bg-color: #0a0a0f;
+            --card-bg: rgba(255, 255, 255, 0.03);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --accent-color: #00f2ff;
+            --accent-hover: #00c8d3;
+            --success-color: #00ff9d;
+            --danger-color: #ff4d4d;
+            --warning-color: #ffb84d;
+            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        /* ===== CUSTOM DROPDOWN FILTERS ===== */
+        .filter-dropdown {
+            position: relative;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .filter-trigger {
+            width: 100%;
+            background-color: #1a1a20;
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 12px 15px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 1rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .filter-trigger:hover {
+            border-color: var(--accent-color);
+        }
+
+        .filter-trigger .filter-text {
+            flex: 1;
+            text-align: left;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .filter-trigger .filter-count {
+            background: var(--accent-color);
+            color: #000;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 12px;
+            display: none;
+        }
+
+        .filter-trigger .filter-count.show {
+            display: inline-block;
+        }
+
+        .filter-trigger i {
+            transition: transform 0.2s ease;
+            color: var(--text-secondary);
+        }
+
+        .filter-dropdown.open .filter-trigger i {
+            transform: rotate(180deg);
+        }
+
+        .filter-options {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            /* SOLID BACKGROUND - Multiple declarations for maximum compatibility */
+            background: #1a1a20;
+            background-color: #1a1a20;
+            /* Very high z-index to ensure it appears above table */
+            z-index: 9999;
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 8px;
+            display: none;
+            max-height: 280px;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+            /* Prevent any transparency inheritance */
+            opacity: 1;
+            isolation: isolate;
+        }
+
+        .filter-dropdown.open .filter-options {
+            display: block;
+        }
+
+        .filter-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            color: var(--text-primary);
+            transition: all 0.2s ease;
+        }
+
+        .filter-option:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        /* Remove full-row highlight - just use checkbox */
+        .filter-option.selected {
+            background-color: transparent;
+        }
+
+        .filter-option input[type="checkbox"] {
+            display: none;
+        }
+
+        /* Small square checkbox */
+        .filter-option .check-box {
+            width: 16px;
+            height: 16px;
+            min-width: 16px;
+            border: 2px solid var(--card-border);
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .filter-option.selected .check-box {
+            background-color: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+
+        .filter-option .check-box i {
+            font-size: 10px;
+            color: #000;
+            opacity: 0;
+        }
+
+        .filter-option.selected .check-box i {
+            opacity: 1;
+        }
+
+        /* Only apply flex:1 to the TEXT span, not the check-box span */
+        .filter-option span:last-child {
+            flex: 1;
+        }
+
+        /* Ensure check-box doesn't grow */
+        .filter-option .check-box {
+            flex: 0 0 16px;
+        }
+
+        /* Selected tags in filter */
+        .filter-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 8px;
+        }
+
+        .filter-tag {
+            background: rgba(0, 242, 255, 0.1);
+            border: 1px solid rgba(0, 242, 255, 0.2);
+            color: var(--text-primary);
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .filter-tag .remove-tag {
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+
+        .filter-tag .remove-tag:hover {
+            color: var(--danger-color);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            min-height: 100vh;
+            background-image:
+                radial-gradient(circle at 10% 20%, rgba(0, 242, 255, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(123, 31, 162, 0.05) 0%, transparent 40%);
+            padding: 2rem;
+        }
+
+        /* Header & KPIs */
+        .dashboard-header {
+            margin-bottom: 3rem;
+        }
+
+        .header-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 2rem;
+            background: linear-gradient(90deg, #fff, #a0a0a0);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -1px;
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .kpi-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            backdrop-filter: blur(10px);
+            transition: transform 0.3s ease, border-color 0.3s ease;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent-color);
+        }
+
+        .kpi-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .kpi-value {
+            font-size: 2.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .kpi-icon {
+            float: right;
+            font-size: 1.5rem;
+            opacity: 0.5;
+        }
+
+        /* Filters */
+        .filters-container {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            align-items: center;
+            backdrop-filter: blur(10px);
+            /* Create stacking context for dropdown z-index */
+            position: relative;
+            z-index: 100;
+        }
+
+        .search-box {
+            flex: 2;
+            min-width: 300px;
+            position: relative;
+        }
+
+        .search-input {
+            width: 100%;
+            background: linear-gradient(135deg, #1a1a20 0%, #1f1f28 100%);
+            border: 2px solid var(--accent-color);
+            border-radius: 12px;
+            padding: 1rem 1rem 1rem 3rem;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 20px rgba(0, 242, 255, 0.15);
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 25px rgba(0, 242, 255, 0.3), 0 0 0 3px rgba(0, 242, 255, 0.1);
+            background: linear-gradient(135deg, #1f1f28 0%, #242430 100%);
+        }
+
+        .search-input::placeholder {
+            color: rgba(160, 160, 160, 0.7);
+            font-weight: 500;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--accent-color);
+            font-size: 1.1rem;
+        }
+
+        .filter-select {
+            background: #1a1a20;
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 1rem;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 1rem;
+            cursor: pointer;
+            min-width: 200px;
+        }
+
+        .filter-select:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        /* Multi-select Dropdown */
+        .multi-select-wrapper {
+            position: relative;
+            flex: 1;
+            min-width: 180px;
+        }
+
+        .multi-select-trigger {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+            transition: all 0.2s ease;
+        }
+
+        .multi-select-trigger:hover,
+        .multi-select-wrapper.active .multi-select-trigger {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--accent-color);
+        }
+
+        .multi-select-trigger::after {
+            content: '';
+            display: inline-block;
+            width: 0;
+            height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 5px solid var(--text-secondary);
+            margin-left: 0.5rem;
+            transition: transform 0.2s ease;
+        }
+
+        .multi-select-wrapper.active .multi-select-trigger::after {
+            transform: rotate(180deg);
+        }
+
+        .multi-select-dropdown {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            width: 100%;
+            background: #13131a;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            padding: 0.5rem;
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            scrollbar-width: none;
+            /* Firefox */
+        }
+
+        .multi-select-dropdown::-webkit-scrollbar {
+            display: none;
+            /* Chrome/Safari/Webkit */
+        }
+
+        .multi-select-dropdown.show {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .multi-select-option {
+            padding: 0.75rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            margin-bottom: 2px;
+            position: relative;
+        }
+
+        .multi-select-option:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .multi-select-option.selected {
+            background: rgba(0, 242, 255, 0.1);
+        }
+
+        .multi-select-option .check-icon {
+            opacity: 0;
+            color: var(--accent-color);
+            font-size: 1.2rem;
+            transition: opacity 0.2s ease;
+            width: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .multi-select-option.selected .check-icon {
+            opacity: 1;
+        }
+
+        .multi-select-option label {
+            cursor: pointer;
+            flex: 1;
+            font-size: 0.9rem;
+            color: var(--text-primary);
+            line-height: 1.4;
+            user-select: none;
+        }
+
+        /* Linked Agents Badges */
+        .linked-agents-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .agent-badge {
+            background: rgba(0, 242, 255, 0.1);
+            border: 1px solid rgba(0, 242, 255, 0.3);
+            color: var(--accent-color);
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .agent-badge i {
+            font-size: 0.7rem;
+        }
+
+        /* ===== MULTI-SELECT CHECKBOXES ===== */
+        .session-checkbox {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent-color);
+            cursor: pointer;
+        }
+
+        .sessions-table th.checkbox-col,
+        .sessions-table td.checkbox-col {
+            width: 50px;
+            text-align: center;
+            padding: 0.75rem;
+        }
+
+        .sessions-table tr.selected {
+            background: rgba(0, 242, 255, 0.08) !important;
+        }
+
+        .sessions-table tr.selected:hover {
+            background: rgba(0, 242, 255, 0.12) !important;
+        }
+
+        /* ===== BULK ACTIONS BAR ===== */
+        .bulk-actions-bar {
+            position: fixed;
+            bottom: -100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #1a1a20, #252530);
+            border: 1px solid var(--accent-color);
+            border-radius: 16px;
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0, 242, 255, 0.2);
+            z-index: 1000;
+            transition: bottom 0.3s ease;
+        }
+
+        .bulk-actions-bar.visible {
+            bottom: 2rem;
+        }
+
+        .bulk-actions-bar .selection-count {
+            color: var(--accent-color);
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .bulk-actions-bar .selection-count span {
+            color: var(--text-primary);
+        }
+
+        .bulk-actions-bar button {
+            padding: 0.6rem 1.2rem;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .bulk-actions-bar .btn-edit {
+            background: var(--accent-color);
+            color: #000;
+            border: none;
+        }
+
+        .bulk-actions-bar .btn-edit:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+        }
+
+        .bulk-actions-bar .btn-clear {
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--card-border);
+        }
+
+        .bulk-actions-bar .btn-clear:hover {
+            color: var(--text-primary);
+            border-color: var(--text-secondary);
+        }
+
+        /* Session Table */
+        .sessions-table-container {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+            overflow-x: auto;
+        }
+
+        .sessions-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 900px;
+        }
+
+        .sessions-table thead {
+            background: #13131a;
+            border-bottom: 1px solid var(--card-border);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .sessions-table th {
+            padding: 1rem 1.25rem;
+            text-align: left;
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            background: #13131a;
+            position: sticky;
+            top: 0;
+        }
+
+        /* Status cell with date */
+        .status-cell {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .status-date {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            opacity: 0.7;
+        }
+
+        .sessions-table th.sortable {
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s ease;
+        }
+
+        .sessions-table th.sortable:hover {
+            color: var(--accent-color);
+            background: rgba(0, 242, 255, 0.05);
+        }
+
+        .sort-icon {
+            margin-left: 0.3rem;
+            font-size: 0.75rem;
+            opacity: 0.5;
+            transition: all 0.2s ease;
+        }
+
+        .sessions-table th.sortable:hover .sort-icon {
+            opacity: 1;
+        }
+
+        .sort-icon.asc::before {
+            content: "\F128";
+        }
+
+        .sort-icon.desc::before {
+            content: "\F127";
+        }
+
+        .sort-icon.active {
+            opacity: 1;
+            color: var(--accent-color);
+        }
+
+        .sessions-table tbody tr {
+            border-bottom: 1px solid var(--card-border);
+            transition: all 0.2s ease;
+        }
+
+        .sessions-table tbody tr:hover {
+            background: rgba(0, 242, 255, 0.03);
+        }
+
+        .sessions-table tbody tr:last-child {
+            border-bottom: none;
+        }
+
+        .sessions-table td {
+            padding: 1rem 1.25rem;
+            vertical-align: middle;
+        }
+
+        /* Profile Picture */
+        .profile-pic {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--card-border);
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .profile-pic-placeholder {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid var(--card-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            font-size: 1.2rem;
+        }
+
+        /* Session Name in Table */
+        .session-name-cell {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        /* Vendedores Column */
+        .vendedores-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+            max-width: 200px;
+        }
+
+        .vendedor-badge {
+            background: rgba(0, 242, 255, 0.1);
+            border: 1px solid rgba(0, 242, 255, 0.2);
+            color: var(--accent-color);
+            padding: 0.2rem 0.5rem;
+            border-radius: 10px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+        }
+
+        .vendedor-count {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-style: italic;
+        }
+
+        /* Tipo Atendimento */
+        .tipo-atendimento-badge {
+            background: rgba(123, 31, 162, 0.15);
+            border: 1px solid rgba(123, 31, 162, 0.3);
+            color: #b388ff;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .tipo-atendimento-empty {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-style: italic;
+        }
+
+        /* Chamados Hoje Badge */
+        .chamados-hoje-badge {
+            background: rgba(0, 200, 150, 0.15);
+            border: 1px solid rgba(0, 200, 150, 0.3);
+            color: #00ff9d;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: inline-block;
+            min-width: 40px;
+            text-align: center;
+        }
+
+        /* Status Columns */
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: inline-block;
+        }
+
+        /* Waha Status Colors - matching Waha dashboard */
+        .status-working {
+            background: rgba(72, 187, 120, 0.2);
+            color: #48bb78;
+            border: 1px solid rgba(72, 187, 120, 0.4);
+        }
+
+        .status-scan_qr_code {
+            background: rgba(56, 178, 172, 0.2);
+            color: #38b2ac;
+            border: 1px solid rgba(56, 178, 172, 0.4);
+        }
+
+        .status-starting {
+            background: rgba(236, 201, 75, 0.2);
+            color: #ecc94b;
+            border: 1px solid rgba(236, 201, 75, 0.4);
+        }
+
+        .status-failed {
+            background: rgba(245, 101, 101, 0.2);
+            color: #f56565;
+            border: 1px solid rgba(245, 101, 101, 0.4);
+        }
+
+        .status-stopped {
+            background: rgba(113, 128, 150, 0.2);
+            color: #718096;
+            border: 1px solid rgba(113, 128, 150, 0.4);
+        }
+
+        /* Uazapi Status Colors */
+        .status-connected {
+            background: rgba(72, 187, 120, 0.2);
+            color: #48bb78;
+            border: 1px solid rgba(72, 187, 120, 0.4);
+        }
+
+        .status-disconnected {
+            background: rgba(245, 101, 101, 0.2);
+            color: #f56565;
+            border: 1px solid rgba(245, 101, 101, 0.4);
+        }
+
+        .status-unknown {
+            background: rgba(160, 160, 160, 0.1);
+            color: var(--text-secondary);
+            border: 1px solid rgba(160, 160, 160, 0.2);
+        }
+
+        .status-not-linked {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-style: italic;
+        }
+
+        /* Actions Column */
+        .btn-edit-table {
+            background: rgba(0, 242, 255, 0.1);
+            border: 1px solid var(--accent-color);
+            color: var(--accent-color);
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.8rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .btn-edit-table:hover {
+            background: rgba(0, 242, 255, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .session-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .session-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--glass-shadow);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .session-card.card-active {
+            z-index: 100;
+            border-color: var(--accent-color);
+            transform: translateY(-5px);
+            box-shadow: var(--glass-shadow);
+        }
+
+        .session-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .session-name {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .session-phone {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-working {
+            background: rgba(0, 255, 157, 0.1);
+            color: var(--success-color);
+            border: 1px solid rgba(0, 255, 157, 0.2);
+        }
+
+        .status-failed {
+            background: rgba(255, 77, 77, 0.1);
+            color: var(--danger-color);
+            border: 1px solid rgba(255, 77, 77, 0.2);
+        }
+
+        .agent-section {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--card-border);
+        }
+
+        .agent-select-wrapper {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            align-items: stretch;
+        }
+
+        .agent-select {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 0.75rem;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.9rem;
+            cursor: pointer;
+            min-width: 180px;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23a0a0a0' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            padding-right: 2rem;
+        }
+
+        .agent-select:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        select option {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+        }
+
+        .btn-connect {
+            background: var(--accent-color);
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .btn-connect:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+        }
+
+        .btn-connect:disabled {
+            background: #333;
+            color: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Loading State */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            transition: opacity 0.5s ease;
+        }
+
+        .loader {
+            width: 48px;
+            height: 48px;
+            border: 3px solid var(--accent-color);
+            border-radius: 50%;
+            display: inline-block;
+            position: relative;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+        }
+
+        .loader::after {
+            content: '';
+            box-sizing: border-box;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            border-bottom-color: var(--warning-color);
+        }
+
+        @keyframes rotation {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Toast Notification */
+        .toast-container {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 1000;
+        }
+
+        .toast {
+            background: rgba(20, 20, 25, 0.95);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 1rem 1.5rem;
+            margin-top: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            box-shadow: var(--glass-shadow);
+            backdrop-filter: blur(10px);
+            animation: slideIn 0.3s ease;
+            min-width: 300px;
+        }
+
+        .toast.success {
+            border-left: 4px solid var(--success-color);
+        }
+
+        .toast.error {
+            border-left: 4px solid var(--danger-color);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Edit Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.show {
+            opacity: 1;
+        }
+
+        .modal-content {
+            background: #13131a;
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            transform: scale(0.95);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-overlay.show .modal-content {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        .modal-header h2 {
+            color: var(--accent-color);
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .btn-close-modal {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 2rem;
+            cursor: pointer;
+            transition: color 0.3s ease;
+            line-height: 1;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-close-modal:hover {
+            color: var(--danger-color);
+        }
+
+        .modal-section {
+            margin-bottom: 2rem;
+        }
+
+        .modal-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .modal-section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .modal-section-title i {
+            color: var(--accent-color);
+        }
+
+        .modal-label {
+            display: block;
+            margin-bottom: 0.75rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .modal-select {
+            width: 100%;
+            background: #1a1a20;
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 0.75rem;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+
+        .modal-select:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        .btn-add-service {
+            margin-top: 0.75rem;
+            background: rgba(0, 242, 255, 0.1);
+            border: 1px dashed var(--accent-color);
+            color: var(--accent-color);
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .btn-add-service:hover {
+            background: rgba(0, 242, 255, 0.15);
+            border-style: solid;
+        }
+
+        .add-service-input {
+            display: none;
+            margin-top: 0.75rem;
+            width: 100%;
+            background: #1a1a20;
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 0.75rem;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 1rem;
+        }
+
+        .add-service-input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        .modal-vendor-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            max-height: 250px;
+            overflow-y: auto;
+            padding: 0.5rem;
+            background: #1a1a20;
+            border-radius: 8px;
+            border: 1px solid var(--card-border);
+        }
+
+        .modal-vendor-option {
+            padding: 0.75rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .modal-vendor-option:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .modal-vendor-option.selected {
+            background: rgba(0, 242, 255, 0.1);
+        }
+
+        .modal-vendor-option .check-icon {
+            opacity: 0;
+            color: var(--accent-color);
+            font-size: 1.2rem;
+            transition: opacity 0.2s ease;
+            width: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .modal-vendor-option.selected .check-icon {
+            opacity: 1;
+        }
+
+        .modal-vendor-option label {
+            cursor: pointer;
+            flex: 1;
+            font-size: 0.95rem;
+            color: var(--text-primary);
+            user-select: none;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--card-border);
+        }
+
+        .btn-modal-cancel,
+        .btn-modal-save {
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            font-size: 1rem;
+        }
+
+        .btn-modal-cancel {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+        }
+
+        .btn-modal-cancel:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .btn-modal-save {
+            background: var(--accent-color);
+            color: #000;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-modal-save:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+        }
+
+        .btn-modal-save:disabled {
+            background: #333;
+            color: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-edit-session {
+            background: rgba(0, 242, 255, 0.1);
+            border: 1px solid var(--accent-color);
+            color: var(--accent-color);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .btn-edit-session:hover {
+            background: rgba(0, 242, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .filters-container {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .search-box,
+            .filter-select,
+            .multi-select-wrapper {
+                width: 100%;
+                min-width: auto;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="editModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Editar Sessão: <span id="modalSessionName" style="color: var(--accent-color);"></span></h2>
+                <button class="btn-close-modal" onclick="closeEditModal()">×</button>
+            </div>
+
+            <!-- Service Type Section -->
+            <div class="modal-section">
+                <div class="modal-section-title">
+                    <i class="bi bi-tag"></i>
+                    Tipo de Atendimento
+                </div>
+                <label class="modal-label">Selecione o tipo de atendimento:</label>
+                <select id="serviceTypeSelect" class="modal-select">
+                    <option value="">Selecione...</option>
+                </select>
+                <button class="btn-add-service" onclick="toggleAddService()">
+                    <i class="bi bi-plus-circle"></i>
+                    Adicionar Novo Tipo
+                </button>
+                <input type="text" id="newServiceType" class="add-service-input"
+                    placeholder="Digite o nome do novo tipo de atendimento...">
+            </div>
+
+            <!-- Vendors Section -->
+            <div class="modal-section">
+                <div class="modal-section-title">
+                    <i class="bi bi-people"></i>
+                    Vendedores Vinculados
+                </div>
+                <label class="modal-label">Selecione os vendedores para esta sessão:</label>
+                <div id="modalVendorList" class="modal-vendor-list">
+                    <!-- Vendedores serão inseridos aqui dinamicamente -->
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn-modal-cancel" onclick="closeEditModal()">Cancelar</button>
+                <button class="btn-modal-save" id="btnSaveModal" onclick="saveSessionChanges()">
+                    <i class="bi bi-check-lg"></i>
+                    Salvar Alterações
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk Edit Modal -->
+    <div id="bulkEditModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Editar <span id="bulkModalCount" style="color: var(--accent-color);">0</span> Sessões</h2>
+                <button class="btn-close-modal" onclick="closeBulkEditModal()">×</button>
+            </div>
+
+            <div class="modal-section"
+                style="background: rgba(255, 184, 77, 0.1); border-color: rgba(255, 184, 77, 0.3);">
+                <div
+                    style="display: flex; align-items: center; gap: 0.5rem; color: var(--warning-color); font-size: 0.9rem;">
+                    <i class="bi bi-info-circle"></i>
+                    <span>As alterações serão aplicadas em todas as sessões selecionadas.</span>
+                </div>
+            </div>
+
+            <!-- Service Type Section -->
+            <div class="modal-section">
+                <div class="modal-section-title">
+                    <i class="bi bi-tag"></i>
+                    Tipo de Atendimento
+                </div>
+                <label class="modal-label">Selecione o tipo de atendimento (deixe vazio para não alterar):</label>
+                <select id="bulkServiceTypeSelect" class="modal-select">
+                    <option value="">Não alterar</option>
+                </select>
+            </div>
+
+            <!-- Vendors Section -->
+            <div class="modal-section">
+                <div class="modal-section-title">
+                    <i class="bi bi-people"></i>
+                    Vendedores Vinculados
+                </div>
+                <label class="modal-label">Selecione os vendedores para todas as sessões:</label>
+                <div id="bulkModalVendorList" class="modal-vendor-list">
+                    <!-- Vendedores serão inseridos aqui dinamicamente -->
+                </div>
+                <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary);">
+                    <i class="bi bi-info-circle"></i> Os vendedores selecionados serão aplicados a todas as sessões.
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn-modal-cancel" onclick="closeBulkEditModal()">Cancelar</button>
+                <button class="btn-modal-save" id="btnSaveBulkModal" onclick="saveBulkChanges()">
+                    <i class="bi bi-check-lg"></i>
+                    Salvar Alterações
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loader"></div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <div class="dashboard-header">
+        <h1 class="header-title">Waha & Chatwoot <span style="font-weight: 300; opacity: 0.7;">Dashboard</span></h1>
+
+        <!-- KPIs -->
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <i class="bi bi-hdd-stack kpi-icon" style="color: var(--accent-color);"></i>
+                <div class="kpi-label">Total Sessões</div>
+                <div class="kpi-value" id="kpiTotal">0</div>
+            </div>
+            <div class="kpi-card">
+                <i class="bi bi-check-circle kpi-icon" style="color: var(--success-color);"></i>
+                <div class="kpi-label">Online (Working)</div>
+                <div class="kpi-value" id="kpiWorking">0</div>
+            </div>
+            <div class="kpi-card">
+                <i class="bi bi-exclamation-triangle kpi-icon" style="color: var(--danger-color);"></i>
+                <div class="kpi-label">Falhas</div>
+                <div class="kpi-value" id="kpiFailed">0</div>
+            </div>
+            <div class="kpi-card">
+                <i class="bi bi-person-check kpi-icon" style="color: var(--warning-color);"></i>
+                <div class="kpi-label">Vinculados</div>
+                <div class="kpi-value" id="kpiLinked">0</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters-container">
+        <div class="search-box">
+            <i class="bi bi-search search-icon"></i>
+            <input type="text" class="search-input" id="searchInput" placeholder="Buscar por nome ou telefone...">
+        </div>
+
+        <!-- Status Waha Filter -->
+        <div class="filter-dropdown" id="statusFilterDropdown">
+            <button class="filter-trigger" type="button">
+                <span class="filter-text">Status Waha</span>
+                <span class="filter-count">0</span>
+                <i class="bi bi-chevron-down"></i>
+            </button>
+            <div class="filter-options">
+                <label class="filter-option" data-value="WORKING">
+                    <span class="check-box"><i class="bi bi-check"></i></span>
+                    <span>Working</span>
+                </label>
+                <label class="filter-option" data-value="SCAN_QR_CODE">
+                    <span class="check-box"><i class="bi bi-check"></i></span>
+                    <span>Scan QR Code</span>
+                </label>
+                <label class="filter-option" data-value="STARTING">
+                    <span class="check-box"><i class="bi bi-check"></i></span>
+                    <span>Starting</span>
+                </label>
+                <label class="filter-option" data-value="FAILED">
+                    <span class="check-box"><i class="bi bi-check"></i></span>
+                    <span>Failed</span>
+                </label>
+                <label class="filter-option" data-value="STOPPED">
+                    <span class="check-box"><i class="bi bi-check"></i></span>
+                    <span>Stopped</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Status Uazapi Filter -->
+        <div class="filter-dropdown" id="uazapiFilterDropdown">
+            <button class="filter-trigger" type="button">
+                <span class="filter-text">Status Uazapi</span>
+                <span class="filter-count">0</span>
+                <i class="bi bi-chevron-down"></i>
+            </button>
+            <div class="filter-options">
+                <label class="filter-option" data-value="connected">
+                    <span class="check-box"><i class="bi bi-check"></i></span>
+                    <span>Conectado</span>
+                </label>
+                <label class="filter-option" data-value="disconnected">
+                    <span class="check-box"><i class="bi bi-check"></i></span>
+                    <span>Desconectado</span>
+                </label>
+                <label class="filter-option" data-value="not_in_uazapi">
+                    <span class="check-box"><i class="bi bi-check"></i></span>
+                    <span>Não está no Uazapi</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Tipo Atendimento Filter -->
+        <div class="filter-dropdown" id="serviceTypeFilterDropdown">
+            <button class="filter-trigger" type="button">
+                <span class="filter-text">Tipo Atendimento</span>
+                <span class="filter-count">0</span>
+                <i class="bi bi-chevron-down"></i>
+            </button>
+            <div class="filter-options" id="serviceTypeOptions">
+                <label class="filter-option" data-value="__undefined__">
+                    <span class="check-box"><i class="bi bi-check"></i></span>
+                    <span>Não definido</span>
+                </label>
+                <!-- Other types populated by JS -->
+            </div>
+        </div>
+
+        <!-- Agentes Filter -->
+        <div class="filter-dropdown" id="agentFilterDropdown">
+            <button class="filter-trigger" type="button">
+                <span class="filter-text">Agentes Vinculados</span>
+                <span class="filter-count">0</span>
+                <i class="bi bi-chevron-down"></i>
+            </button>
+            <div class="filter-options" id="agentOptions">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Sessions Table -->
+    <div class="sessions-table-container">
+        <table class="sessions-table">
+            <thead>
+                <tr>
+                    <th class="checkbox-col">
+                        <input type="checkbox" class="session-checkbox" id="selectAllCheckbox"
+                            onchange="toggleSelectAll(this.checked)" title="Selecionar todas visíveis">
+                    </th>
+                    <th>Foto</th>
+                    <th class="sortable" onclick="sortTable('name')">Sessão <i class="bi bi-arrow-down-up sort-icon"
+                            id="sort-name"></i></th>
+                    <th class="sortable" onclick="sortTable('vendedores')">Vendedores <i
+                            class="bi bi-arrow-down-up sort-icon" id="sort-vendedores"></i></th>
+                    <th class="sortable" onclick="sortTable('tipo')">Tipo Atendimento <i
+                            class="bi bi-arrow-down-up sort-icon" id="sort-tipo"></i></th>
+                    <th class="sortable" onclick="sortTable('statusWaha')">Status Waha <i
+                            class="bi bi-arrow-down-up sort-icon" id="sort-statusWaha"></i></th>
+                    <th class="sortable" onclick="sortTable('statusUazapi')">Status Uazapi <i
+                            class="bi bi-arrow-down-up sort-icon" id="sort-statusUazapi"></i></th>
+                    <th class="sortable" onclick="sortTable('chamadosHoje')">Chamados Hoje <i
+                            class="bi bi-arrow-down-up sort-icon" id="sort-chamadosHoje"></i></th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="sessionsTableBody">
+                <!-- Rows will be injected here -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Bulk Actions Bar -->
+    <div class="bulk-actions-bar" id="bulkActionsBar">
+        <div class="selection-count">
+            <span id="selectedCount">0</span> selecionadas
+        </div>
+        <button class="btn-edit" onclick="openBulkEditModal()">
+            <i class="bi bi-pencil-square"></i> Editar Selecionadas
+        </button>
+        <button class="btn-clear" onclick="clearSelection()">
+            <i class="bi bi-x-lg"></i> Limpar
+        </button>
+    </div>
+
+    <script>
+        const API_WAHA = 'https://waha-abd.levezaativa.site/api/sessions?all=true';
+        const API_WAHA_BASE = 'https://waha-abd.levezaativa.site/api'; // Base URL for Waha API
+        const API_AGENTS = 'https://n8nnovo.levezaativa.site/webhook/pegar-agentes-chatwoot';
+        const API_INBOX_AGENTS = 'https://n8nnovo.levezaativa.site/webhook/pegar-caixas-e-seus-agentes-chatwoot';
+        const API_WEBHOOK = 'https://n8nnovo.levezaativa.site/webhook/caixa-entrada-chatwoot';
+        const API_UAZAPI = 'https://levezaativasite.uazapi.com/instance/all';
+        const UAZAPI_TOKEN = 'JssNSqzWEMzUlBWQ3eTDPm5x14xhqc200awasgxKyOcVAdETqV';
+
+        // ===== STATE =====
+        let currentSessions = [];
+        let agents = [];
+        let inboxAgents = [];
+        let uazapiInstances = [];
+        let sessionTokens = {};
+        let linkedSessions = new Set();
+        let initialStates = {};
+        let serviceTypes = [];
+        let sessionServiceTypes = {};
+        let sessionChamadosHoje = {};
+        let wahaProfilePictures = {}; // Stores profile pictures fetched from Waha API
+        let selectedSessions = new Set(); // Session names that are selected for bulk edit
+        let visibleSessionNames = []; // Tracks currently visible/filtered session names
+
+        // Filter states
+        let selectedFilters = {
+            status: [],
+            uazapi: [],
+            serviceType: [],
+            agent: []
+        };
+
+        // Sorting state
+        let currentSortColumn = null;
+        let currentSortDirection = 'asc';
+
+        // Performance: Lazy load
+        const SESSIONS_PER_PAGE = 100;
+        let displayedCount = SESSIONS_PER_PAGE;
+        let allFilteredSessions = [];
+
+        // Performance: Debounce
+        let searchDebounceTimer = null;
+
+        // Performance: Cache keys
+        const CACHE_KEYS = {
+            sessions: 'dash_sessions_cache',
+            agents: 'dash_agents_cache',
+            inboxAgents: 'dash_inbox_agents_cache',
+            serviceTypes: 'dash_service_types_cache',
+            uazapi: 'dash_uazapi_cache'
+        };
+        const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+        // ===== DOM ELEMENTS =====
+        const sessionsTableBody = document.getElementById('sessionsTableBody');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const searchInput = document.getElementById('searchInput');
+
+        // ===== PERFORMANCE HELPER FUNCTIONS =====
+        function getCache(key) {
+            try {
+                const cached = sessionStorage.getItem(key);
+                if (!cached) return null;
+                const { data, timestamp } = JSON.parse(cached);
+                if (Date.now() - timestamp > CACHE_DURATION) {
+                    sessionStorage.removeItem(key);
+                    return null;
+                }
+                return data;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function setCache(key, data) {
+            try {
+                sessionStorage.setItem(key, JSON.stringify({
+                    data,
+                    timestamp: Date.now()
+                }));
+            } catch (e) {
+                // Cache full or unavailable
+            }
+        }
+
+        function debouncedRenderSessions() {
+            clearTimeout(searchDebounceTimer);
+            searchDebounceTimer = setTimeout(() => {
+                displayedCount = SESSIONS_PER_PAGE; // Reset lazy load on new search
+                renderSessions();
+            }, 300);
+        }
+
+        // ===== FILTER DROPDOWN UTILITY FUNCTIONS =====
+        function initializeFilterDropdowns() {
+            // Get all filter dropdowns
+            const dropdowns = document.querySelectorAll('.filter-dropdown');
+
+            dropdowns.forEach(dropdown => {
+                const trigger = dropdown.querySelector('.filter-trigger');
+                const options = dropdown.querySelectorAll('.filter-option');
+
+                // Toggle dropdown on click
+                trigger.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    // Close other dropdowns
+                    dropdowns.forEach(d => {
+                        if (d !== dropdown) d.classList.remove('open');
+                    });
+                    dropdown.classList.toggle('open');
+                });
+
+                // Handle option selection
+                options.forEach(option => {
+                    option.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        option.classList.toggle('selected');
+                        updateFilterState(dropdown);
+                        updateFilterCount(dropdown);
+                        renderSessions();
+                    });
+                });
+            });
+
+            // Close dropdowns when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.filter-dropdown')) {
+                    dropdowns.forEach(d => d.classList.remove('open'));
+                }
+            });
+        }
+
+        function updateFilterState(dropdown) {
+            const selectedOptions = dropdown.querySelectorAll('.filter-option.selected');
+            const values = Array.from(selectedOptions).map(opt => opt.dataset.value);
+
+            if (dropdown.id === 'statusFilterDropdown') {
+                selectedFilters.status = values;
+            } else if (dropdown.id === 'uazapiFilterDropdown') {
+                selectedFilters.uazapi = values;
+            } else if (dropdown.id === 'serviceTypeFilterDropdown') {
+                selectedFilters.serviceType = values;
+            } else if (dropdown.id === 'agentFilterDropdown') {
+                selectedFilters.agent = values;
+            }
+        }
+
+        function updateFilterCount(dropdown) {
+            const count = dropdown.querySelectorAll('.filter-option.selected').length;
+            const countEl = dropdown.querySelector('.filter-count');
+            countEl.textContent = count;
+            countEl.classList.toggle('show', count > 0);
+        }
+
+        function getSelectedFilterValues(dropdownId) {
+            const dropdown = document.getElementById(dropdownId);
+            if (!dropdown) return [];
+            const selectedOptions = dropdown.querySelectorAll('.filter-option.selected');
+            return Array.from(selectedOptions).map(opt => opt.dataset.value);
+        }
+
+        // ===== INITIALIZATION =====
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Initialize custom dropdown filters
+            initializeFilterDropdowns();
+
+            try {
+                await Promise.all([fetchSessions(), fetchAgents(), fetchInboxAgents(), fetchServiceTypes(), fetchUazapiInstances()]);
+
+                // Populate linkedSessions from inboxAgents
+                inboxAgents.forEach(ia => {
+                    if (ia.agentes && ia.agentes.length > 0) {
+                        linkedSessions.add(ia.inbox);
+                    }
+                });
+
+                populateAgentFilter();
+                updateKPIs();
+                renderSessions();
+                loadingOverlay.style.opacity = '0';
+                setTimeout(() => loadingOverlay.remove(), 500);
+
+                // Fetch Waha profile pictures asynchronously (don't block initial load)
+                fetchWahaProfilePictures();
+
+            } catch (error) {
+                showToast('Erro ao carregar dados iniciais', 'error');
+                console.error(error);
+                loadingOverlay.style.display = 'none';
+            }
+        });
+
+        // Event Listeners
+        searchInput.addEventListener('input', debouncedRenderSessions);
+
+        // Fetch Data
+        async function fetchSessions() {
+            // Check cache first
+            const cached = getCache(CACHE_KEYS.sessions);
+            if (cached) {
+                currentSessions = cached;
+                return;
+            }
+
+            try {
+                const response = await fetch(API_WAHA);
+                if (!response.ok) throw new Error('Failed to fetch Waha sessions');
+                const data = await response.json();
+                currentSessions = Array.isArray(data) ? data : (data.value || []);
+                setCache(CACHE_KEYS.sessions, currentSessions);
+            } catch (error) {
+                showToast('Erro ao carregar sessões', 'error');
+                currentSessions = [];
+            }
+        }
+
+        async function fetchAgents() {
+            const cached = getCache(CACHE_KEYS.agents);
+            if (cached) {
+                agents = cached;
+                return;
+            }
+
+            try {
+                const response = await fetch(API_AGENTS);
+                if (!response.ok) throw new Error('Failed to fetch Agents');
+                const data = await response.json();
+                agents = Array.isArray(data) ? data : (data.value || []);
+                setCache(CACHE_KEYS.agents, agents);
+            } catch (error) {
+                showToast('Erro ao carregar vendedores', 'error');
+                agents = [];
+            }
+        }
+
+        async function fetchInboxAgents() {
+            const cached = getCache(CACHE_KEYS.inboxAgents);
+            if (cached) {
+                inboxAgents = cached;
+                return;
+            }
+
+            try {
+                const response = await fetch(API_INBOX_AGENTS);
+                if (!response.ok) throw new Error('Failed to fetch Inbox Agents');
+                const data = await response.json();
+                inboxAgents = data.data || (Array.isArray(data) ? data : []);
+                setCache(CACHE_KEYS.inboxAgents, inboxAgents);
+            } catch (error) {
+                showToast('Erro ao carregar vínculo de agentes', 'error');
+                inboxAgents = [];
+            }
+        }
+
+        async function fetchUazapiInstances() {
+            const cached = getCache(CACHE_KEYS.uazapi);
+            if (cached) {
+                uazapiInstances = cached;
+                return;
+            }
+
+            try {
+                const response = await fetch(API_UAZAPI, {
+                    headers: { 'admintoken': UAZAPI_TOKEN }
+                });
+                if (!response.ok) throw new Error('Failed to fetch Uazapi instances');
+                const data = await response.json();
+                uazapiInstances = Array.isArray(data) ? data : [];
+                setCache(CACHE_KEYS.uazapi, uazapiInstances);
+            } catch (error) {
+                uazapiInstances = [];
+            }
+        }
+
+        // Fetch Waha Profile Pictures (for sessions without Uazapi pictures)
+        async function fetchWahaProfilePictures() {
+            console.log('Fetching Waha profile pictures...');
+
+            // Only fetch for WORKING sessions without Uazapi pictures
+            const sessionsWithoutPictures = currentSessions.filter(session => {
+                const uazapiInstance = uazapiInstances.find(inst => inst.name === session.name);
+                // Only fetch for WORKING sessions (API only works when session is active)
+                return session.status === 'WORKING' && !uazapiInstance?.profilePicUrl;
+            });
+
+            // Limit concurrent requests to avoid overloading the server
+            const batchSize = 5;
+            for (let i = 0; i < sessionsWithoutPictures.length; i += batchSize) {
+                const batch = sessionsWithoutPictures.slice(i, i + batchSize);
+                await Promise.allSettled(batch.map(async (session) => {
+                    try {
+                        const response = await fetch(`${API_WAHA_BASE}/${session.name}/profile`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            if (data.picture) {
+                                wahaProfilePictures[session.name] = data.picture;
+                            }
+                        }
+                    } catch (error) {
+                        // Silently fail - some sessions might not have profiles
+                        console.log(`Could not fetch profile for ${session.name}:`, error.message);
+                    }
+                }));
+            }
+
+            console.log('Waha Profile Pictures:', wahaProfilePictures);
+            // Re-render to show the pictures
+            if (Object.keys(wahaProfilePictures).length > 0) {
+                renderSessions();
+            }
+        }
+
+        // Sorting Logic
+        function sortTable(column) {
+            // Toggle direction if same column, otherwise reset to asc
+            if (currentSortColumn === column) {
+                currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortColumn = column;
+                currentSortDirection = 'asc';
+            }
+
+            // Update sort icons
+            document.querySelectorAll('.sort-icon').forEach(icon => {
+                icon.classList.remove('bi-arrow-up', 'bi-arrow-down', 'active');
+                icon.classList.add('bi-arrow-down-up');
+            });
+
+            const activeIcon = document.getElementById(`sort-${column}`);
+            if (activeIcon) {
+                activeIcon.classList.remove('bi-arrow-down-up');
+                activeIcon.classList.add(currentSortDirection === 'asc' ? 'bi-arrow-up' : 'bi-arrow-down', 'active');
+            }
+
+            // Sort sessions
+            currentSessions.sort((a, b) => {
+                let valA, valB;
+
+                switch (column) {
+                    case 'name':
+                        valA = (a.name || '').toLowerCase();
+                        valB = (b.name || '').toLowerCase();
+                        break;
+                    case 'vendedores':
+                        // Sort by number of linked agents
+                        const inboxA = inboxAgents.find(ia => ia.inbox === a.name);
+                        const inboxB = inboxAgents.find(ia => ia.inbox === b.name);
+                        valA = inboxA?.agentes?.length || 0;
+                        valB = inboxB?.agentes?.length || 0;
+                        break;
+                    case 'tipo':
+                        valA = (sessionServiceTypes[a.name] || '').toLowerCase();
+                        valB = (sessionServiceTypes[b.name] || '').toLowerCase();
+                        break;
+                    case 'statusWaha':
+                        valA = (a.status || '').toLowerCase();
+                        valB = (b.status || '').toLowerCase();
+                        break;
+                    case 'statusUazapi':
+                        const uazapiA = uazapiInstances.find(inst => inst.name === a.name);
+                        const uazapiB = uazapiInstances.find(inst => inst.name === b.name);
+                        valA = uazapiA?.status || 'zzz'; // Put "not found" at end
+                        valB = uazapiB?.status || 'zzz';
+                        break;
+                    case 'chamadosHoje':
+                        valA = sessionChamadosHoje[a.name] || 0;
+                        valB = sessionChamadosHoje[b.name] || 0;
+                        break;
+                    default:
+                        valA = '';
+                        valB = '';
+                }
+
+                if (valA < valB) return currentSortDirection === 'asc' ? -1 : 1;
+                if (valA > valB) return currentSortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            renderSessions();
+        }
+
+        // Helper to get row data for filtering
+        function getSessionRowData(session) {
+            const name = session.name || '';
+            const phone = session.me?.id || '';
+            const statusWaha = session.status || '';
+            const uazapiInst = uazapiInstances.find(i => i.name === session.name);
+            const statusUazapi = uazapiInst ? (uazapiInst.status === 'connected' ? 'connected' : 'disconnected') : 'not_in_uazapi';
+            const serviceType = sessionServiceTypes[session.name] || '';
+            const inbox = inboxAgents.find(ia => ia.inbox === session.name);
+            const sessionAgentIds = inbox ? inbox.agentes.map(a => String(Array.isArray(a) ? a[0] : a)) : [];
+
+            return { name, phone, statusWaha, statusUazapi, serviceType, sessionAgentIds };
+        }
+
+        // ===== MULTI-SELECT FUNCTIONS =====
+        function toggleSessionSelection(sessionName, checkbox) {
+            if (checkbox.checked) {
+                selectedSessions.add(sessionName);
+            } else {
+                selectedSessions.delete(sessionName);
+            }
+            updateSelectionUI();
+            updateRowSelectedState(sessionName, checkbox.checked);
+        }
+
+        function toggleSelectAll(checked) {
+            if (checked) {
+                // Select all currently visible sessions
+                visibleSessionNames.forEach(name => selectedSessions.add(name));
+            } else {
+                // Deselect all
+                selectedSessions.clear();
+            }
+            updateSelectionUI();
+            updateAllRowStates();
+        }
+
+        function clearSelection() {
+            selectedSessions.clear();
+            document.getElementById('selectAllCheckbox').checked = false;
+            updateSelectionUI();
+            updateAllRowStates();
+        }
+
+        function updateSelectionUI() {
+            const count = selectedSessions.size;
+            document.getElementById('selectedCount').textContent = count;
+
+            const bulkActionsBar = document.getElementById('bulkActionsBar');
+            if (count > 0) {
+                bulkActionsBar.classList.add('visible');
+            } else {
+                bulkActionsBar.classList.remove('visible');
+            }
+
+            // Update selectAll checkbox state
+            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+            if (visibleSessionNames.length > 0) {
+                const allVisibleSelected = visibleSessionNames.every(name => selectedSessions.has(name));
+                const someVisibleSelected = visibleSessionNames.some(name => selectedSessions.has(name));
+                selectAllCheckbox.checked = allVisibleSelected;
+                selectAllCheckbox.indeterminate = someVisibleSelected && !allVisibleSelected;
+            } else {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+            }
+        }
+
+        function updateRowSelectedState(sessionName, isSelected) {
+            const row = document.querySelector(`tr[data-session="${sessionName}"]`);
+            if (row) {
+                if (isSelected) {
+                    row.classList.add('selected');
+                } else {
+                    row.classList.remove('selected');
+                }
+            }
+        }
+
+        function updateAllRowStates() {
+            document.querySelectorAll('.session-checkbox-row').forEach(checkbox => {
+                const sessionName = checkbox.dataset.session;
+                const isSelected = selectedSessions.has(sessionName);
+                checkbox.checked = isSelected;
+                updateRowSelectedState(sessionName, isSelected);
+            });
+        }
+
+        // Render Logic
+        function renderSessions() {
+            const searchTerm = searchInput.value.toLowerCase().trim();
+            const selectedStatuses = selectedFilters.status;
+            const selectedUazapi = selectedFilters.uazapi;
+            const selectedServices = selectedFilters.serviceType;
+            const selectedAgents = selectedFilters.agent;
+
+            sessionsTableBody.innerHTML = '';
+
+            const filteredSessions = currentSessions.filter(session => {
+                const rowData = getSessionRowData(session);
+
+                // Search
+                const matchesSearch = rowData.name.toLowerCase().includes(searchTerm) ||
+                    rowData.phone.includes(searchTerm);
+                if (!matchesSearch) return false;
+
+                // Status Waha Filter (Multi)
+                if (selectedStatuses.length > 0) {
+                    if (!selectedStatuses.includes(session.status)) return false;
+                }
+
+                // Status Uazapi Filter (Multi)
+                if (selectedUazapi.length > 0) {
+                    if (!selectedUazapi.includes(rowData.statusUazapi)) return false;
+                }
+
+                // Service Type Filter (Multi) - includes support for "__undefined__"
+                if (selectedServices.length > 0) {
+                    const hasUndefinedFilter = selectedServices.includes('__undefined__');
+                    const otherFilters = selectedServices.filter(s => s !== '__undefined__');
+
+                    const isUndefined = !rowData.serviceType;
+                    const matchesOther = otherFilters.length > 0 && otherFilters.includes(rowData.serviceType);
+
+                    // Pass if: (undefined filter selected AND service is undefined) OR (matches one of the other filters)
+                    if (!(hasUndefinedFilter && isUndefined) && !matchesOther) return false;
+                }
+
+                // Agent Filter (Multi)
+                if (selectedAgents.length > 0) {
+                    const hasSelectedAgent = selectedAgents.some(selectedId => rowData.sessionAgentIds.includes(selectedId));
+                    if (!hasSelectedAgent) return false;
+                }
+
+                return true;
+            });
+
+            // Track visible session names for multi-select (all filtered, not just displayed)
+            visibleSessionNames = filteredSessions.map(s => s.name);
+
+            // Store all filtered for lazy load
+            allFilteredSessions = filteredSessions;
+
+            // Lazy load: only render first displayedCount sessions
+            const sessionsToRender = filteredSessions.slice(0, displayedCount);
+
+            sessionsToRender.forEach(session => {
+                const row = createSessionRow(session);
+                sessionsTableBody.appendChild(row);
+            });
+
+            // Add "Load More" button if there are more sessions
+            if (filteredSessions.length > displayedCount) {
+                const loadMoreRow = document.createElement('tr');
+                loadMoreRow.id = 'loadMoreRow';
+                loadMoreRow.innerHTML = `
+                    <td colspan="9" style="text-align: center; padding: 1rem;">
+                        <button onclick="loadMoreSessions()" style="
+                            background: var(--accent-color);
+                            color: #000;
+                            border: none;
+                            padding: 0.75rem 2rem;
+                            border-radius: 8px;
+                            cursor: pointer;
+                            font-weight: 600;
+                            font-family: inherit;
+                        ">
+                            <i class="bi bi-plus-circle"></i> 
+                            Carregar mais (${filteredSessions.length - displayedCount} restantes)
+                        </button>
+                    </td>
+                `;
+                sessionsTableBody.appendChild(loadMoreRow);
+            }
+
+            // Update selection UI after rendering
+            updateSelectionUI();
+        }
+
+        function loadMoreSessions() {
+            displayedCount += SESSIONS_PER_PAGE;
+            renderSessions();
+        }
+
+        function createSessionRow(session) {
+            // Determine status class based on session status (matching Waha dashboard)
+            const statusClassMap = {
+                'WORKING': 'status-working',
+                'SCAN_QR_CODE': 'status-scan_qr_code',
+                'STARTING': 'status-starting',
+                'FAILED': 'status-failed',
+                'STOPPED': 'status-stopped'
+            };
+            const statusWahaClass = statusClassMap[session.status] || 'status-unknown';
+
+            // Find linked agents for this session
+            const inboxEntry = inboxAgents.find(ia => ia.inbox === session.name);
+            const linkedIds = inboxEntry && inboxEntry.agentes ? inboxEntry.agentes.map(a => Array.isArray(a) ? a[0] : a) : [];
+
+            // Store initial state
+            initialStates[session.name] = new Set(linkedIds);
+
+            // Get linked agent names
+            const linkedAgentNames = agents.filter(a => linkedIds.includes(a.id)).map(a => a.name);
+
+            // Find Uazapi instance by session name (matching Waha session name with Uazapi instance name)
+            const uazapiInstance = uazapiInstances.find(inst => inst.name === session.name);
+
+            // Get profile picture (from Uazapi if available, otherwise from Waha)
+            const profilePicUrl = uazapiInstance?.profilePicUrl || wahaProfilePictures[session.name] || null;
+
+            // Get Uazapi status
+            let uazapiStatusHtml = '<span class="status-not-linked">—</span>';
+            if (uazapiInstance) {
+                const isConnected = uazapiInstance.status === 'connected';
+                const statusClass = isConnected ? 'status-connected' : 'status-disconnected';
+                uazapiStatusHtml = `<span class="status-badge ${statusClass}">${uazapiInstance.status}</span>`;
+            }
+
+            // Format session creation date (if available)
+            let sessionDateHtml = '';
+            const createdAt = session.config?.createdAt || session.createdAt;
+            if (createdAt) {
+                const date = new Date(createdAt);
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                sessionDateHtml = `<span class="status-date">${hours}:${minutes} - ${day}/${month}</span>`;
+            }
+
+            // Vendedores badges HTML
+            let vendedoresHtml = '<span class="vendedor-count">Nenhum</span>';
+            if (linkedAgentNames.length > 0) {
+                if (linkedAgentNames.length <= 2) {
+                    vendedoresHtml = linkedAgentNames.map(name =>
+                        `<span class="vendedor-badge">${name}</span>`
+                    ).join('');
+                } else {
+                    vendedoresHtml = `
+                        <span class="vendedor-badge">${linkedAgentNames[0]}</span>
+                        <span class="vendedor-badge">+${linkedAgentNames.length - 1}</span>
+                    `;
+                }
+            }
+
+            // Tipo Atendimento HTML
+            const tipoAtendimento = sessionServiceTypes[session.name];
+            const tipoHtml = tipoAtendimento
+                ? `<span class="tipo-atendimento-badge">${tipoAtendimento}</span>`
+                : '<span class="tipo-atendimento-empty">Não definido</span>';
+
+            // Profile picture HTML
+            const profileHtml = profilePicUrl
+                ? `<img src="${profilePicUrl}" alt="Profile" class="profile-pic" onerror="this.outerHTML='<div class=\\'profile-pic-placeholder\\'><i class=\\'bi bi-person\\'></i></div>'">`
+                : '<div class="profile-pic-placeholder"><i class="bi bi-person"></i></div>';
+
+            // Chamados Hoje
+            const chamadosHoje = sessionChamadosHoje[session.name] || 0;
+
+            // Check if this session is selected
+            const isSelected = selectedSessions.has(session.name);
+
+            const row = document.createElement('tr');
+            row.setAttribute('data-session', session.name);
+            if (isSelected) row.classList.add('selected');
+
+            row.innerHTML = `
+                <td class="checkbox-col">
+                    <input type="checkbox" class="session-checkbox session-checkbox-row" 
+                           data-session="${session.name}"
+                           ${isSelected ? 'checked' : ''}
+                           onchange="toggleSessionSelection('${session.name}', this)">
+                </td>
+                <td>${profileHtml}</td>
+                <td class="session-name-cell">${session.name}</td>
+                <td><div class="vendedores-badges">${vendedoresHtml}</div></td>
+                <td>${tipoHtml}</td>
+                <td><div class="status-cell"><span class="status-badge ${statusWahaClass}">${session.status}</span>${sessionDateHtml}</div></td>
+                <td><div class="status-cell">${uazapiStatusHtml}${sessionDateHtml}</div></td>
+                <td><span class="chamados-hoje-badge">${chamadosHoje}</span></td>
+                <td>
+                    <button class="btn-edit-table" onclick="openEditModal('${session.name}')">
+                        <i class="bi bi-pencil"></i> Editar
+                    </button>
+                </td>
+            `;
+
+            return row;
+        }
+
+        function toggleDropdown(sessionName) {
+            const wrapper = document.getElementById(`wrapper-${sessionName}`);
+            const dropdown = document.getElementById(`dropdown-${sessionName}`);
+            const card = wrapper.closest('.session-card');
+
+            // Close other dropdowns
+            document.querySelectorAll('.multi-select-dropdown.show').forEach(el => {
+                if (el.id !== `dropdown-${sessionName}`) {
+                    el.classList.remove('show');
+                    el.closest('.multi-select-wrapper').classList.remove('active');
+                    // Remove active class from other cards
+                    const otherCard = el.closest('.session-card');
+                    if (otherCard) otherCard.classList.remove('card-active');
+                }
+            });
+
+            dropdown.classList.toggle('show');
+            wrapper.classList.toggle('active');
+
+            if (dropdown.classList.contains('show')) {
+                card.classList.add('card-active');
+            } else {
+                card.classList.remove('card-active');
+            }
+        }
+
+        function toggleOption(event, sessionName) {
+            const optionDiv = event.currentTarget;
+            const checkbox = optionDiv.querySelector('input[type="checkbox"]');
+
+            // Toggle checkbox
+            checkbox.checked = !checkbox.checked;
+
+            // Toggle visual state
+            if (checkbox.checked) {
+                optionDiv.classList.add('selected');
+            } else {
+                optionDiv.classList.remove('selected');
+            }
+
+            updateTrigger(sessionName);
+            checkDirtyState(sessionName);
+        }
+
+        function checkDirtyState(sessionName) {
+            const wrapper = document.getElementById(`wrapper-${sessionName}`);
+            const checkboxes = wrapper.querySelectorAll('input[type="checkbox"]:checked');
+            const currentIds = new Set(Array.from(checkboxes).map(cb => parseInt(cb.value)));
+            const initialIds = initialStates[sessionName] || new Set();
+
+            // Check if sets are equal
+            let isDirty = currentIds.size !== initialIds.size;
+            if (!isDirty) {
+                for (let id of currentIds) {
+                    if (!initialIds.has(id)) {
+                        isDirty = true;
+                        break;
+                    }
+                }
+            }
+
+            const btn = document.getElementById(`btn-${sessionName}`);
+            if (isDirty) {
+                btn.disabled = false;
+            } else {
+                btn.disabled = true;
+            }
+        }
+
+        function updateTrigger(sessionName) {
+            const wrapper = document.getElementById(`wrapper-${sessionName}`);
+            const trigger = wrapper.querySelector('.multi-select-trigger');
+            const checkboxes = wrapper.querySelectorAll('input[type="checkbox"]:checked');
+
+            // Update badges as well
+            const badgesContainer = document.getElementById(`badges-${sessionName}`);
+            const selectedAgents = [];
+
+            checkboxes.forEach(cb => {
+                const label = cb.closest('.multi-select-option').querySelector('label').textContent;
+                selectedAgents.push(label);
+            });
+
+            // Update Badges HTML
+            badgesContainer.innerHTML = selectedAgents.map(name => `
+                <span class="agent-badge">
+                    <i class="bi bi-person-fill"></i> ${name}
+                </span>
+            `).join('');
+
+            if (checkboxes.length === 0) {
+                trigger.textContent = 'Selecione vendedores...';
+            } else if (checkboxes.length === 1) {
+                const label = selectedAgents[0];
+                trigger.textContent = label.length > 20 ? label.substring(0, 20) + '...' : label;
+            } else {
+                trigger.textContent = `${checkboxes.length} selecionados`;
+            }
+        }
+
+        function populateAgentFilter() {
+            const optionsContainer = document.getElementById('agentOptions');
+            if (!optionsContainer) return;
+
+            optionsContainer.innerHTML = '';
+            agents.forEach(agent => {
+                const option = document.createElement('label');
+                option.className = 'filter-option';
+                option.dataset.value = agent.id;
+                option.innerHTML = `
+                    <span class="check-box"><i class="bi bi-check"></i></span>
+                    <span>${agent.name}</span>
+                `;
+                option.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    option.classList.toggle('selected');
+                    const dropdown = document.getElementById('agentFilterDropdown');
+                    updateFilterState(dropdown);
+                    updateFilterCount(dropdown);
+                    renderSessions();
+                });
+                optionsContainer.appendChild(option);
+            });
+        }
+
+        // Action Logic
+        window.handleLink = async (sessionName) => {
+            const wrapper = document.getElementById(`wrapper-${sessionName}`);
+            const checkboxes = wrapper.querySelectorAll('input[type="checkbox"]:checked');
+            const agentIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+            // Allow empty agentIds for unlinking
+
+            const btn = document.getElementById(`btn-${sessionName}`);
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<div class="loader" style="width: 20px; height: 20px; border-width: 2px;"></div>';
+
+            try {
+                const payload = {
+                    sessionName: sessionName,
+                    agentIds: agentIds
+                };
+
+                const response = await fetch(API_WEBHOOK, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                    const action = agentIds.length > 0 ? 'vinculada' : 'desvinculada';
+                    showToast(`Sessão ${sessionName} ${action} com sucesso!`, 'success');
+
+                    // Update local state
+                    if (agentIds.length > 0) {
+                        linkedSessions.add(sessionName);
+                    } else {
+                        linkedSessions.delete(sessionName);
+                    }
+
+                    // Update initial state to match current
+                    initialStates[sessionName] = new Set(agentIds);
+
+                    updateKPIs();
+                    document.getElementById(`dropdown-${sessionName}`).classList.remove('show');
+                    document.getElementById(`wrapper-${sessionName}`).classList.remove('active');
+                    document.getElementById(`wrapper-${sessionName}`).closest('.session-card').classList.remove('card-active');
+
+                    // Update button text if needed
+                    btn.innerHTML = agentIds.length > 0 ? '<i class="bi bi-link-45deg"></i> Atualizar' : '<i class="bi bi-link-45deg"></i> Vincular';
+                    // Keep disabled until next change
+                    btn.disabled = true;
+
+                } else {
+                    throw new Error('Falha na requisição');
+                    btn.disabled = false; // Re-enable on error
+                    btn.innerHTML = originalText;
+                }
+            } catch (error) {
+                console.error(error);
+                showToast('Erro ao atualizar vendedores. Tente novamente.', 'error');
+                btn.disabled = false; // Re-enable on error
+                btn.innerHTML = originalText;
+            }
+        };
+
+        // KPIs
+        function updateKPIs() {
+            console.log('Updating KPIs with sessions:', currentSessions.length);
+            const total = currentSessions.length;
+            const working = currentSessions.filter(s => s.status === 'WORKING').length;
+            const failed = currentSessions.filter(s => s.status === 'FAILED').length;
+            const linked = currentSessions.filter(s =>
+                linkedSessions.has(s.name) || (s.assignedWorker && s.assignedWorker !== "")
+            ).length;
+
+            console.log('KPIs:', { total, working, failed, linked });
+
+            document.getElementById('kpiTotal').innerText = total;
+            document.getElementById('kpiWorking').innerText = working;
+            document.getElementById('kpiFailed').innerText = failed;
+            document.getElementById('kpiLinked').innerText = linked;
+        }
+
+        // Toast
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <i class="bi ${type === 'success' ? 'bi-check-circle-fill' : 'bi-x-circle-fill'}" 
+                   style="color: var(--${type}-color); font-size: 1.2rem;"></i>
+                <span>${message}</span>
+            `;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // === SUPABASE & MODAL CODE ===
+
+        // Supabase Configuration
+        const SUPABASE_URL = 'https://etxlelebookzbbzmjpxa.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0eGxlbGVib29remJiem1qcHhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk2NDYxMjAsImV4cCI6MjA2NTIyMjEyMH0.dB82pydIZRUpw9NOJt01t0I203A-tl5E9cXbJ7INUFg';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // Modal state
+        let currentEditingSession = null;
+        let isAddingServiceType = false;
+
+        // Fetch Service Types
+        async function fetchServiceTypes() {
+            console.log('Fetching service types...');
+            try {
+                const { data, error } = await supabase.from('sessoes_vendedores').select('*');
+                if (error) throw error;
+
+                const types = new Set();
+                (data || []).forEach(row => {
+                    if (row['tipo_atendimento']) types.add(row['tipo_atendimento']);
+                    if (row['sessao']) {
+                        sessionServiceTypes[row['sessao']] = row['tipo_atendimento'] || '';
+                        sessionChamadosHoje[row['sessao']] = row['chamados_hoje'] || 0;
+                        if (row['token_uazapi']) {
+                            sessionTokens[row['sessao']] = row['token_uazapi'];
+                        }
+                    }
+                });
+
+                serviceTypes = Array.from(types);
+
+                // Populate native dropdown for Service Types
+                const optionsContainer = document.getElementById('serviceTypeOptions');
+                if (optionsContainer) {
+                    optionsContainer.innerHTML = '';
+                    serviceTypes.forEach(t => {
+                        const option = document.createElement('label');
+                        option.className = 'filter-option';
+                        option.dataset.value = t;
+                        option.innerHTML = `
+                            <span class="check-box"><i class="bi bi-check"></i></span>
+                            <span>${t}</span>
+                        `;
+                        option.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            option.classList.toggle('selected');
+                            const dropdown = document.getElementById('serviceTypeFilterDropdown');
+                            updateFilterState(dropdown);
+                            updateFilterCount(dropdown);
+                            renderSessions();
+                        });
+                        optionsContainer.appendChild(option);
+                    });
+                }
+
+                console.log('Service Types:', serviceTypes);
+            } catch (error) {
+                console.error('Error fetching service types:', error);
+            }
+        }
+
+        // Open Edit Modal
+        function openEditModal(sessionName) {
+            currentEditingSession = sessionName;
+            const modal = document.getElementById('editModal');
+            const btn = document.getElementById('btnSaveModal');
+
+            // Reset button state on open
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check-lg"></i> Salvar Alterações';
+            }
+
+            document.getElementById('modalSessionName').textContent = sessionName;
+
+            // Populate service types
+            const select = document.getElementById('serviceTypeSelect');
+            select.innerHTML = '<option value="">Selecione...</option>';
+            serviceTypes.forEach(type => {
+                const opt = document.createElement('option');
+                opt.value = type;
+                opt.textContent = type;
+                select.appendChild(opt);
+            });
+            select.value = sessionServiceTypes[sessionName] || '';
+
+            // Reset add service
+            document.getElementById('newServiceType').style.display = 'none';
+            document.getElementById('newServiceType').value = '';
+            isAddingServiceType = false;
+
+            // Populate vendors
+            const inboxEntry = inboxAgents.find(ia => ia.inbox === sessionName);
+            const linkedIds = inboxEntry && inboxEntry.agentes ?
+                inboxEntry.agentes.map(a => Array.isArray(a) ? a[0] : a) : [];
+
+            const vendorList = document.getElementById('modalVendorList');
+            vendorList.innerHTML = '';
+            agents.forEach(agent => {
+                const isSelected = linkedIds.includes(agent.id);
+                const div = document.createElement('div');
+                div.className = `modal-vendor-option ${isSelected ? 'selected' : ''}`;
+                div.onclick = () => toggleModalVendor(div);
+                div.innerHTML = `
+                    <span class="check-icon"><i class="bi bi-check-lg"></i></span>
+                    <label>${agent.name}</label>
+                    <input type="checkbox" value="${agent.id}" ${isSelected ? 'checked' : ''} style="display:none;">
+                `;
+                vendorList.appendChild(div);
+            });
+
+            modal.style.display = 'flex';
+            setTimeout(() => modal.classList.add('show'), 10);
+        }
+
+        // Close Modal
+        function closeEditModal() {
+            const modal = document.getElementById('editModal');
+            const btn = document.getElementById('btnSaveModal');
+
+            // Reset button state
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check-lg"></i> Salvar Alterações';
+            }
+
+            modal.classList.remove('show');
+            setTimeout(() => {
+                modal.style.display = 'none';
+                currentEditingSession = null;
+                isAddingServiceType = false;
+            }, 300);
+        }
+
+        // ===== BULK EDIT MODAL FUNCTIONS =====
+        function openBulkEditModal() {
+            if (selectedSessions.size === 0) {
+                showToast('Nenhuma sessão selecionada', 'error');
+                return;
+            }
+
+            const modal = document.getElementById('bulkEditModal');
+            const btn = document.getElementById('btnSaveBulkModal');
+
+            // Reset button state
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check-lg"></i> Salvar Alterações';
+            }
+
+            // Update count
+            document.getElementById('bulkModalCount').textContent = selectedSessions.size;
+
+            // Populate service types
+            const select = document.getElementById('bulkServiceTypeSelect');
+            select.innerHTML = '<option value="">Não alterar</option>';
+            serviceTypes.forEach(type => {
+                const opt = document.createElement('option');
+                opt.value = type;
+                opt.textContent = type;
+                select.appendChild(opt);
+            });
+
+            // Populate vendors (none pre-selected for bulk edit)
+            const vendorList = document.getElementById('bulkModalVendorList');
+            vendorList.innerHTML = '';
+            agents.forEach(agent => {
+                const div = document.createElement('div');
+                div.className = 'modal-vendor-option';
+                div.onclick = () => toggleModalVendor(div);
+                div.innerHTML = `
+                    <span class="check-icon"><i class="bi bi-check-lg"></i></span>
+                    <label>${agent.name}</label>
+                    <input type="checkbox" value="${agent.id}" style="display:none;">
+                `;
+                vendorList.appendChild(div);
+            });
+
+            modal.style.display = 'flex';
+            setTimeout(() => modal.classList.add('show'), 10);
+        }
+
+        function closeBulkEditModal() {
+            const modal = document.getElementById('bulkEditModal');
+            const btn = document.getElementById('btnSaveBulkModal');
+
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check-lg"></i> Salvar Alterações';
+            }
+
+            modal.classList.remove('show');
+            setTimeout(() => {
+                modal.style.display = 'none';
+            }, 300);
+        }
+
+        async function saveBulkChanges() {
+            const btn = document.getElementById('btnSaveBulkModal');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+
+            const serviceType = document.getElementById('bulkServiceTypeSelect').value;
+            const selectedAgentIds = Array.from(document.querySelectorAll('#bulkModalVendorList input:checked'))
+                .map(inp => parseInt(inp.value));
+
+            const sessionsToUpdate = Array.from(selectedSessions);
+            const total = sessionsToUpdate.length;
+            let successCount = 0;
+            let errorCount = 0;
+
+            // Update button to show progress
+            const updateProgress = () => {
+                btn.innerHTML = `<i class="bi bi-hourglass-split"></i> Salvando... (${successCount}/${total})`;
+            };
+            updateProgress();
+
+            // 1. Batch update service types in Supabase (if type selected)
+            if (serviceType) {
+                try {
+                    console.log('Batch updating service type:', serviceType, 'for', total, 'sessions');
+
+                    const upsertData = sessionsToUpdate.map(sessionName => ({
+                        sessao: sessionName,
+                        tipo_atendimento: serviceType
+                    }));
+
+                    const { data, error } = await supabase.from('sessoes_vendedores')
+                        .upsert(upsertData, { onConflict: 'sessao' })
+                        .select();
+
+                    if (error) {
+                        console.error('Supabase Bulk Upsert Error:', error);
+                    } else {
+                        console.log('Supabase Bulk Upsert Success:', data);
+
+                        // Update local state
+                        sessionsToUpdate.forEach(sessionName => {
+                            sessionServiceTypes[sessionName] = serviceType;
+                        });
+
+                        // Add to serviceTypes array if new
+                        if (!serviceTypes.includes(serviceType)) {
+                            serviceTypes.push(serviceType);
+                            updateServiceTypeFilterOptions(serviceType);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Supabase error:', error);
+                }
+            }
+
+            // 2. Update vendors via individual webhook calls (with progress)
+            for (const sessionName of sessionsToUpdate) {
+                try {
+                    console.log(`Updating session ${sessionName} (${successCount + errorCount + 1}/${total})`);;
+
+                    const response = await fetch(API_WEBHOOK, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            sessionName: sessionName,
+                            agentIds: selectedAgentIds
+                        })
+                    });
+
+                    const responseText = await response.text();
+                    console.log(`Response for ${sessionName}:`, responseText);
+
+                    // Check response message for success/error
+                    if (responseText.includes('sucesso')) {
+                        successCount++;
+                        updateProgress();
+
+                        // Update local state
+                        if (selectedAgentIds.length > 0) {
+                            linkedSessions.add(sessionName);
+                        } else {
+                            linkedSessions.delete(sessionName);
+                        }
+                        initialStates[sessionName] = new Set(selectedAgentIds);
+
+                        // Update inboxAgents local data
+                        const inboxEntry = inboxAgents.find(ia => ia.inbox === sessionName);
+                        if (inboxEntry) {
+                            inboxEntry.agentes = selectedAgentIds.map(id => [id]);
+                        } else {
+                            inboxAgents.push({ inbox: sessionName, agentes: selectedAgentIds.map(id => [id]) });
+                        }
+
+                        console.log(`✓ ${sessionName} atualizada com sucesso!`);
+                    } else {
+                        errorCount++;
+                        console.error(`✗ ${responseText}`);
+                    }
+                } catch (error) {
+                    console.error(`Error updating ${sessionName}:`, error);
+                    errorCount++;
+                }
+            }
+
+            // Show results
+            if (errorCount === 0) {
+                showToast(`${successCount} sessões atualizadas com sucesso!`, 'success');
+            } else {
+                showToast(`${successCount} OK, ${errorCount} erros`, errorCount > successCount ? 'error' : 'success');
+            }
+
+            // Refresh UI
+            updateKPIs();
+            renderSessions();
+            clearSelection();
+            closeBulkEditModal();
+        }
+
+        // Helper to update service type filter options
+        function updateServiceTypeFilterOptions(serviceType) {
+            const optionsContainer = document.getElementById('serviceTypeOptions');
+            if (optionsContainer) {
+                const option = document.createElement('label');
+                option.className = 'filter-option';
+                option.dataset.value = serviceType;
+                option.innerHTML = `
+                    <span class="check-box"><i class="bi bi-check"></i></span>
+                    <span>${serviceType}</span>
+                `;
+                option.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    option.classList.toggle('selected');
+                    const dropdown = document.getElementById('serviceTypeFilterDropdown');
+                    updateFilterState(dropdown);
+                    updateFilterCount(dropdown);
+                    renderSessions();
+                });
+                optionsContainer.appendChild(option);
+            }
+        }
+
+        // Toggle Add Service
+        function toggleAddService() {
+            const input = document.getElementById('newServiceType');
+            isAddingServiceType = !isAddingServiceType;
+            input.style.display = isAddingServiceType ? 'block' : 'none';
+            if (isAddingServiceType) input.focus();
+            else input.value = '';
+        }
+
+        // Toggle Modal Vendor
+        function toggleModalVendor(div) {
+            const cb = div.querySelector('input[type="checkbox"]');
+            cb.checked = !cb.checked;
+            div.classList.toggle('selected', cb.checked);
+        }
+
+        // Save Changes
+        async function saveSessionChanges() {
+            if (!currentEditingSession) return;
+
+            let serviceType = document.getElementById('serviceTypeSelect').value;
+            const newType = document.getElementById('newServiceType').value.trim();
+            if (isAddingServiceType && newType) {
+                serviceType = newType;
+            }
+
+            const selectedCbs = document.querySelectorAll('#modalVendorList input[type="checkbox"]:checked');
+            const agentIds = Array.from(selectedCbs).map(cb => parseInt(cb.value));
+
+            const btn = document.getElementById('btnSaveModal');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Salvando...';
+
+            try {
+                // Save to Supabase (ONLY if serviceType is provided)
+                if (serviceType) {
+                    console.log('Saving service type:', serviceType, 'for session:', currentEditingSession);
+                    const { data, error } = await supabase.from('sessoes_vendedores').upsert({
+                        'sessao': currentEditingSession,
+                        'tipo_atendimento': serviceType
+                    }, { onConflict: 'sessao' }).select();
+
+                    if (error) {
+                        console.error('Supabase Upsert Error:', error);
+                        throw error;
+                    }
+                    console.log('Supabase Upsert Success:', data);
+
+                    // Update local state
+                    sessionServiceTypes[currentEditingSession] = serviceType;
+
+                    // Add to serviceTypes array if new
+                    if (!serviceTypes.includes(serviceType)) {
+                        serviceTypes.push(serviceType);
+
+                        // Update native dropdown filter options immediately
+                        const optionsContainer = document.getElementById('serviceTypeOptions');
+                        if (optionsContainer) {
+                            const option = document.createElement('label');
+                            option.className = 'filter-option';
+                            option.dataset.value = serviceType;
+                            option.innerHTML = `
+                                <span class="check-box"><i class="bi bi-check"></i></span>
+                                <span>${serviceType}</span>
+                            `;
+                            option.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                option.classList.toggle('selected');
+                                const dropdown = document.getElementById('serviceTypeFilterDropdown');
+                                updateFilterState(dropdown);
+                                updateFilterCount(dropdown);
+                                renderSessions();
+                            });
+                            optionsContainer.appendChild(option);
+                        }
+                        console.log('New service type added to filter:', serviceType);
+                    }
+                }
+
+                // Update vendors
+                console.log('Updating vendors for session:', currentEditingSession);
+                console.log('Selected agent IDs:', agentIds);
+                console.log('Sending to webhook:', API_WEBHOOK);
+
+                const response = await fetch(API_WEBHOOK, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sessionName: currentEditingSession, agentIds })
+                });
+
+                console.log('Webhook response status:', response.status);
+                console.log('Webhook response OK:', response.ok);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Webhook error response:', errorText);
+                    throw new Error(`Failed to update vendors: ${response.status} - ${errorText}`);
+                }
+
+                const responseData = await response.json();
+                console.log('Webhook response data:', responseData);
+
+                if (agentIds.length > 0) linkedSessions.add(currentEditingSession);
+                else linkedSessions.delete(currentEditingSession);
+                initialStates[currentEditingSession] = new Set(agentIds);
+
+                // Update inbox agents locally
+                const existingIndex = inboxAgents.findIndex(ia => ia.inbox === currentEditingSession);
+                if (existingIndex >= 0) {
+                    inboxAgents[existingIndex].agentes = agentIds.map(id => [id]);
+                } else if (agentIds.length > 0) {
+                    inboxAgents.push({ inbox: currentEditingSession, agentes: agentIds.map(id => [id]) });
+                }
+
+                updateKPIs();
+                renderSessions();
+                showToast('Alterações salvas com sucesso!', 'success');
+                closeEditModal();
+
+            } catch (error) {
+                console.error('Save error detailed:', error);
+                showToast('Erro ao salvar alterações: ' + (error.message || JSON.stringify(error)), 'error');
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+        window.onclick = (e) => {
+            if (e.target.id === 'editModal') closeEditModal();
+        };
+    </script>
+</body>
+
+</html>

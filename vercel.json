@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "name": "waha-chatwoot-dashboard",
+  "builds": [
+    {
+      "src": "Dashchatwoot.html",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/Dashchatwoot.html"
+    }
+  ]
+}
