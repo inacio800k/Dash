@@ -2062,6 +2062,8 @@
                 loadingOverlay.style.opacity = '0';
                 setTimeout(() => loadingOverlay.remove(), 500);
 
+                // Subscribe to real-time updates from Supabase
+                subscribeToRealtimeUpdates();
 
             } catch (error) {
                 showToast('Erro ao carregar dados iniciais', 'error');
@@ -2118,6 +2120,97 @@
                 showToast('Erro ao carregar sessões', 'error');
                 currentSessions = [];
             }
+        }
+
+        // Subscribe to real-time updates from Supabase
+        function subscribeToRealtimeUpdates() {
+            console.log('Subscribing to real-time updates...');
+
+            const channel = supabase
+                .channel('sessoes_vendedores_changes')
+                .on(
+                    'postgres_changes',
+                    {
+                        event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+                        schema: 'public',
+                        table: 'sessoes_vendedores'
+                    },
+                    (payload) => {
+                        console.log('Real-time update received:', payload);
+                        handleRealtimeUpdate(payload);
+                    }
+                )
+                .subscribe((status) => {
+                    console.log('Realtime subscription status:', status);
+                    if (status === 'SUBSCRIBED') {
+                        console.log('✅ Successfully subscribed to real-time updates!');
+                    }
+                });
+
+            // Store channel reference for potential cleanup
+            window.realtimeChannel = channel;
+        }
+
+        // Handle real-time updates
+        function handleRealtimeUpdate(payload) {
+            const { eventType, new: newRecord, old: oldRecord } = payload;
+
+            // Clear cache to get fresh data
+            sessionStorage.removeItem(CACHE_KEYS.sessions);
+
+            if (eventType === 'INSERT') {
+                // Add new session
+                const newSession = mapSupabaseRowToSession(newRecord);
+                currentSessions.push(newSession);
+                console.log('New session added:', newSession.name);
+                showToast(`Nova sessão: ${newSession.name}`, 'success');
+
+            } else if (eventType === 'UPDATE') {
+                // Update existing session
+                const index = currentSessions.findIndex(s => s.name === newRecord.sessao);
+                if (index >= 0) {
+                    currentSessions[index] = mapSupabaseRowToSession(newRecord);
+                    console.log('Session updated:', newRecord.sessao);
+                }
+
+            } else if (eventType === 'DELETE') {
+                // Remove session
+                const index = currentSessions.findIndex(s => s.name === oldRecord.sessao);
+                if (index >= 0) {
+                    currentSessions.splice(index, 1);
+                    console.log('Session removed:', oldRecord.sessao);
+                }
+            }
+
+            // Update local state maps
+            if (eventType !== 'DELETE' && newRecord) {
+                sessionServiceTypes[newRecord.sessao] = newRecord.tipo_atendimento || '';
+                sessionChamadosHoje[newRecord.sessao] = newRecord.chamados_hoje || 0;
+                if (newRecord.token_uazapi) {
+                    sessionTokens[newRecord.sessao] = newRecord.token_uazapi;
+                }
+            }
+
+            // Refresh UI
+            updateKPIs();
+            renderSessions();
+        }
+
+        // Map Supabase row to session object
+        function mapSupabaseRowToSession(row) {
+            return {
+                name: row.sessao,
+                status: row.status_waha || 'FAILED',
+                status_uazapi: row.status_uazapi || null,
+                numero: row.numero || null,
+                foto: row.foto || null,
+                tipo_atendimento: row.tipo_atendimento || null,
+                chamados_hoje: row.chamados_hoje || 0,
+                token_uazapi: row.token_uazapi || null,
+                me: row.numero ? { id: `55${row.numero}@c.us` } : null,
+                config: {},
+                _fromSupabase: true
+            };
         }
 
         // Merge Supabase sessions that don't exist in Waha as FAILED
