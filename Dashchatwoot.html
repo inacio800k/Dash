@@ -2045,10 +2045,9 @@
             initializeFilterDropdowns();
 
             try {
-                await Promise.all([fetchSessions(), fetchAgents(), fetchInboxAgents(), fetchServiceTypes(), fetchUazapiInstances()]);
-
-                // Merge Supabase sessions that don't exist in Waha (show as FAILED)
-                mergeSupabaseSessions();
+                // Sessions now come from Supabase (includes service types, chamados_hoje, foto, etc)
+                // fetchServiceTypes is still called to populate the filter dropdown
+                await Promise.all([fetchSessions(), fetchAgents(), fetchInboxAgents(), fetchServiceTypes()]);
 
                 // Populate linkedSessions from inboxAgents
                 inboxAgents.forEach(ia => {
@@ -2063,8 +2062,6 @@
                 loadingOverlay.style.opacity = '0';
                 setTimeout(() => loadingOverlay.remove(), 500);
 
-                // Fetch Waha profile pictures asynchronously (don't block initial load)
-                fetchWahaProfilePictures();
 
             } catch (error) {
                 showToast('Erro ao carregar dados iniciais', 'error');
@@ -2076,7 +2073,7 @@
         // Event Listeners
         searchInput.addEventListener('input', debouncedRenderSessions);
 
-        // Fetch Data
+        // Fetch Data - Now from Supabase instead of Waha API
         async function fetchSessions() {
             // Check cache first
             const cached = getCache(CACHE_KEYS.sessions);
@@ -2086,12 +2083,38 @@
             }
 
             try {
-                const response = await fetch(API_WAHA);
-                if (!response.ok) throw new Error('Failed to fetch Waha sessions');
-                const data = await response.json();
-                currentSessions = Array.isArray(data) ? data : (data.value || []);
+                console.log('Fetching sessions from Supabase...');
+                const { data, error } = await supabase.from('sessoes_vendedores').select('*');
+                if (error) throw error;
+
+                // Map Supabase data to session structure expected by the dashboard
+                currentSessions = (data || []).map(row => ({
+                    name: row.sessao,
+                    status: row.status_waha || 'FAILED', // Default to FAILED if no status
+                    status_uazapi: row.status_uazapi || null,
+                    numero: row.numero || null,
+                    foto: row.foto || null,
+                    tipo_atendimento: row.tipo_atendimento || null,
+                    chamados_hoje: row.chamados_hoje || 0,
+                    token_uazapi: row.token_uazapi || null,
+                    me: row.numero ? { id: `55${row.numero}@c.us` } : null, // Format phone for compatibility
+                    config: {},
+                    _fromSupabase: true
+                }));
+
+                // Also populate sessionServiceTypes, sessionChamadosHoje, sessionTokens
+                currentSessions.forEach(session => {
+                    sessionServiceTypes[session.name] = session.tipo_atendimento || '';
+                    sessionChamadosHoje[session.name] = session.chamados_hoje || 0;
+                    if (session.token_uazapi) {
+                        sessionTokens[session.name] = session.token_uazapi;
+                    }
+                });
+
+                console.log('Loaded sessions from Supabase:', currentSessions.length);
                 setCache(CACHE_KEYS.sessions, currentSessions);
             } catch (error) {
+                console.error('Error fetching sessions from Supabase:', error);
                 showToast('Erro ao carregar sessões', 'error');
                 currentSessions = [];
             }
@@ -2267,10 +2290,9 @@
                         valB = (b.status || '').toLowerCase();
                         break;
                     case 'statusUazapi':
-                        const uazapiA = uazapiInstances.find(inst => inst.name === a.name);
-                        const uazapiB = uazapiInstances.find(inst => inst.name === b.name);
-                        valA = uazapiA?.status || 'zzz'; // Put "not found" at end
-                        valB = uazapiB?.status || 'zzz';
+                        // Use status_uazapi directly from session (Supabase)
+                        valA = a.status_uazapi || 'zzz'; // Put "not found" at end
+                        valB = b.status_uazapi || 'zzz';
                         break;
                     case 'chamadosHoje':
                         valA = sessionChamadosHoje[a.name] || 0;
@@ -2292,11 +2314,14 @@
         // Helper to get row data for filtering
         function getSessionRowData(session) {
             const name = session.name || '';
-            const phone = session.me?.id || '';
+            const phone = session.numero || (session.me?.id || ''); // Use numero from Supabase
             const statusWaha = session.status || '';
-            const uazapiInst = uazapiInstances.find(i => i.name === session.name);
-            const statusUazapi = uazapiInst ? (uazapiInst.status === 'connected' ? 'connected' : 'disconnected') : 'not_in_uazapi';
-            const serviceType = sessionServiceTypes[session.name] || '';
+            // Use status_uazapi directly from session (Supabase)
+            let statusUazapi = 'not_in_uazapi';
+            if (session.status_uazapi) {
+                statusUazapi = (session.status_uazapi === 'connected' || session.status_uazapi === 'open') ? 'connected' : 'disconnected';
+            }
+            const serviceType = session.tipo_atendimento || sessionServiceTypes[session.name] || '';
             const inbox = inboxAgents.find(ia => ia.inbox === session.name);
             const sessionAgentIds = inbox ? inbox.agentes.map(a => String(Array.isArray(a) ? a[0] : a)) : [];
 
@@ -2494,22 +2519,19 @@
             // Get linked agent names
             const linkedAgentNames = agents.filter(a => linkedIds.includes(a.id)).map(a => a.name);
 
-            // Find Uazapi instance by session name (matching Waha session name with Uazapi instance name)
-            const uazapiInstance = uazapiInstances.find(inst => inst.name === session.name);
+            // Get profile picture from session (Supabase)
+            const profilePicUrl = session.foto || null;
 
-            // Get profile picture (from Uazapi if available, otherwise from Waha)
-            const profilePicUrl = uazapiInstance?.profilePicUrl || wahaProfilePictures[session.name] || null;
-
-            // Get Uazapi status
+            // Get Uazapi status from session (Supabase)
             let uazapiStatusHtml = '<span class="status-not-linked">—</span>';
-            if (uazapiInstance) {
-                const isConnected = uazapiInstance.status === 'connected';
+            if (session.status_uazapi) {
+                const isConnected = session.status_uazapi === 'connected' || session.status_uazapi === 'open';
                 const statusClass = isConnected ? 'status-connected' : 'status-disconnected';
                 if (isConnected) {
-                    uazapiStatusHtml = `<span class="status-badge ${statusClass}">${uazapiInstance.status}</span>`;
+                    uazapiStatusHtml = `<span class="status-badge ${statusClass}">${session.status_uazapi}</span>`;
                 } else {
                     // Disconnected - make it clickable to reconnect
-                    uazapiStatusHtml = `<span class="status-badge ${statusClass} clickable" onclick="handleUazapiReconnect('${session.name}')" title="Clique para reconectar">${uazapiInstance.status}</span>`;
+                    uazapiStatusHtml = `<span class="status-badge ${statusClass} clickable" onclick="handleUazapiReconnect('${session.name}')" title="Clique para reconectar">${session.status_uazapi}</span>`;
                 }
             }
 
